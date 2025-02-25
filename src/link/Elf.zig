@@ -780,6 +780,13 @@ pub fn loadInput(self: *Elf, input: link.Input) !void {
         switch (input) {
             .res => unreachable,
             .dso_exact => |dso_exact| try argv.appendSlice(gpa, &.{ "-l", dso_exact.name }),
+            .dso_query => |dso_query| {
+                if (dso_query.lib_directory.path) |path| {
+                    try argv.appendSlice(gpa, &.{ "-L", path });
+                }
+                const flag = if (dso_query.needed) "-needed-l" else if (dso_query.weak) "-weak-l" else "-l";
+                try argv.appendSlice(gpa, &.{ flag, dso_query.name });
+            },
             .object, .archive => |obj| try argv.append(gpa, try obj.path.toString(comp.arena)),
             .dso => |dso| try argv.append(gpa, try dso.path.toString(comp.arena)),
         }
@@ -788,6 +795,7 @@ pub fn loadInput(self: *Elf, input: link.Input) !void {
     switch (input) {
         .res => unreachable,
         .dso_exact => @panic("TODO"),
+        .dso_query => @panic("TODO"),
         .object => |obj| try parseObject(self, obj),
         .archive => |obj| try parseArchive(gpa, diags, &self.file_handles, &self.files, target, debug_fmt_strip, default_sym_version, &self.objects, obj, is_static_lib),
         .dso => |dso| try parseDso(gpa, diags, dso, &self.shared_objects, &self.files, target),
@@ -1949,6 +1957,13 @@ fn linkWithLLD(self: *Elf, arena: Allocator, tid: Zcu.PerThread.Id, prog_node: s
                 assert(dso_exact.name[0] == ':');
                 try argv.appendSlice(&.{ "-l", dso_exact.name });
             },
+            .dso_query => |dso_query| {
+                if (dso_query.lib_directory.path) |path| {
+                    try argv.appendSlice(&.{ "-L", path });
+                }
+                const flag = if (dso_query.needed) "-needed-l" else if (dso_query.weak) "-weak-l" else "-l";
+                try argv.appendSlice(&.{ flag, dso_query.name });
+            },
         };
 
         if (whole_archive) {
@@ -1994,7 +2009,7 @@ fn linkWithLLD(self: *Elf, arena: Allocator, tid: Zcu.PerThread.Id, prog_node: s
 
             for (self.base.comp.link_inputs) |link_input| switch (link_input) {
                 .res => unreachable, // Windows-only
-                .object, .archive, .dso_exact => continue,
+                .object, .archive, .dso_exact, .dso_query => continue,
                 .dso => |dso| {
                     const lib_as_needed = !dso.needed;
                     switch ((@as(u2, @intFromBool(lib_as_needed)) << 1) | @intFromBool(as_needed)) {

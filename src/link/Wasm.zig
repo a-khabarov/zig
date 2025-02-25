@@ -3353,6 +3353,7 @@ pub fn loadInput(wasm: *Wasm, input: link.Input) !void {
         switch (input) {
             .res => unreachable,
             .dso_exact => unreachable,
+            .dso_query => unreachable,
             .dso => unreachable,
             .object, .archive => |obj| {
                 try argv.append(gpa, try obj.path.toString(comp.arena));
@@ -3363,6 +3364,7 @@ pub fn loadInput(wasm: *Wasm, input: link.Input) !void {
     switch (input) {
         .res => unreachable,
         .dso_exact => unreachable,
+        .dso_query => unreachable,
         .dso => unreachable,
         .object => |obj| try parseObject(wasm, obj),
         .archive => |obj| try parseArchive(wasm, obj),
@@ -4126,6 +4128,7 @@ fn linkWithLLD(wasm: *Wasm, arena: Allocator, tid: Zcu.PerThread.Id, prog_node: 
                 try argv.append(try dso.path.toString(arena));
             },
             .dso_exact => unreachable,
+            .dso_query => unreachable,
             .res => unreachable,
         };
         if (whole_archive) {

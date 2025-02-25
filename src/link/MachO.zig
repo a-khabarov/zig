@@ -388,6 +388,7 @@ pub fn flushModule(self: *MachO, arena: Allocator, tid: Zcu.PerThread.Id, prog_n
         .dso => continue, // handled below
         .object, .archive => positionals.appendAssumeCapacity(link_input),
         .dso_exact => @panic("TODO"),
+        .dso_query => unreachable,
         .res => unreachable,
     };
 
@@ -441,7 +442,7 @@ pub fn flushModule(self: *MachO, arena: Allocator, tid: Zcu.PerThread.Id, prog_n
     };
 
     for (comp.link_inputs) |link_input| switch (link_input) {
-        .object, .archive, .dso_exact => continue,
+        .object, .archive, .dso_exact, .dso_query => continue,
         .res => unreachable,
         .dso => {
             self.classifyInputFile(link_input) catch |err|
@@ -655,6 +656,7 @@ fn dumpArgv(self: *MachO, comp: *Compilation) !void {
             .res => |res| try argv.append(try res.path.toString(arena)),
             .dso => |dso| try argv.append(try dso.path.toString(arena)),
             .dso_exact => |dso_exact| try argv.appendSlice(&.{ "-l", dso_exact.name }),
+            .dso_query => unreachable,
         };
 
         for (comp.c_object_table.keys()) |key| {
@@ -747,6 +749,7 @@ fn dumpArgv(self: *MachO, comp: *Compilation) !void {
                 try argv.append(try obj.path.toString(arena));
             },
             .dso_exact => |dso_exact| try argv.appendSlice(&.{ "-l", dso_exact.name }),
+            .dso_query => unreachable,
         };
 
         for (comp.c_object_table.keys()) |key| {
@@ -774,6 +777,7 @@ fn dumpArgv(self: *MachO, comp: *Compilation) !void {
 
         for (comp.link_inputs) |link_input| switch (link_input) {
             .object, .archive, .dso_exact => continue, // handled above
+            .dso_query => unreachable,
             .res => unreachable, // windows only
             .dso => |dso| {
                 if (dso.needed) {
@@ -1617,14 +1621,14 @@ fn initOutputSections(self: *MachO) !void {
     }
     self.text_sect_index = self.getSectionByName("__TEXT", "__text") orelse
         try self.addSection("__TEXT", "__text", .{
-            .alignment = switch (self.getTarget().cpu.arch) {
-                .x86_64 => 0,
-                .aarch64 => 2,
-                else => unreachable,
-            },
-            .flags = macho.S_REGULAR |
-                macho.S_ATTR_PURE_INSTRUCTIONS | macho.S_ATTR_SOME_INSTRUCTIONS,
-        });
+        .alignment = switch (self.getTarget().cpu.arch) {
+            .x86_64 => 0,
+            .aarch64 => 2,
+            else => unreachable,
+        },
+        .flags = macho.S_REGULAR |
+            macho.S_ATTR_PURE_INSTRUCTIONS | macho.S_ATTR_SOME_INSTRUCTIONS,
+    });
     self.data_sect_index = self.getSectionByName("__DATA", "__data") orelse
         try self.addSection("__DATA", "__data", .{});
 }
@@ -4444,6 +4448,7 @@ const SystemLib = struct {
     fn fromLinkInput(link_input: link.Input) SystemLib {
         return switch (link_input) {
             .dso_exact => unreachable,
+            .dso_query => unreachable,
             .res => unreachable,
             .object, .archive => |obj| .{
                 .path = obj.path,
